@@ -1,12 +1,23 @@
 plugins {
-    id 'buildlogic.java-application-conventions'
+    // id 'buildlogic.java-application-conventions' // 임시로 주석 처리
+    id 'application' // 표준 플러그인 직접 적용
     id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+repositories {
+    mavenCentral() // Maven Central 저장소를 사용하겠다고 명시
+}
+// 만약 컨벤션 플러그인에 Java 버전 설정이 있었다면 수동으로 추가
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 dependencies {
     implementation 'org.apache.commons:commons-text:1.12.0'
     implementation project(':utilities')
     implementation project(':list')
+   // JUnit 5 (Jupiter) 테스트 프레임워크를 테스트 의존성으로 추가합니다.
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
 
 application {
@@ -15,5 +26,10 @@ application {
 
 javafx {
     version = '21.0.4'
-    modules = ['javafx.controls', 'javafx.fxml']
+    // 'javafx.graphics'와 'javafx.base' 모듈을 추가하여 문제를 해결합니다.
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics', 'javafx.base']
+}
+
+test {
+    useJUnitPlatform() // JUnit 5 테스트를 실행하도록 설정
 }
