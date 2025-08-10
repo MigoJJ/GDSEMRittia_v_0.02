@@ -14,18 +14,26 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.function.UnaryOperator;
 
-public class App extends Application {
+public class IttiaApp extends Application {
 
     private final List<TextArea> areas = new ArrayList<>(10);
 
@@ -41,9 +49,15 @@ public class App extends Application {
     private ListProblemAction problemAction;
     private ListButtonAction buttonAction;
 
+    private Connection dbConn;
+    private Map<String, String> abbrevMap = new HashMap<>();
+
     @Override
     public void start(Stage stage) {
         stage.setTitle("GDSEMR ITTIA – EMR Prototype (JavaFX)");
+
+        // Initialize SQLite database for abbreviations
+        initAbbrevDatabase();
 
         problemAction = new ListProblemAction(this);
         buttonAction = new ListButtonAction(this);
@@ -74,6 +88,28 @@ public class App extends Application {
         installGlobalShortcuts(scene);
     }
 
+    private void initAbbrevDatabase() {
+        try {
+            Class.forName("org.sqlite.JDBC");
+            dbConn = DriverManager.getConnection("jdbc:sqlite:abbreviations.db");
+            Statement stmt = dbConn.createStatement();
+            stmt.execute("CREATE TABLE IF NOT EXISTS abbreviations (short TEXT PRIMARY KEY, full TEXT)");
+
+            // Insert examples if not exist
+            stmt.execute("INSERT OR IGNORE INTO abbreviations (short, full) VALUES ('c', 'hypercholesterolemia')");
+            stmt.execute("INSERT OR IGNORE INTO abbreviations (short, full) VALUES ('to', 'hypothyroidism')");
+
+            // Load into map
+            ResultSet rs = stmt.executeQuery("SELECT * FROM abbreviations");
+            while (rs.next()) {
+                abbrevMap.put(rs.getString("short"), rs.getString("full"));
+            }
+        } catch (ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+            // Handle error, perhaps show alert
+        }
+    }
+
     private GridPane buildCenterAreas() {
         GridPane grid = new GridPane();
         grid.setHgap(10);
@@ -96,6 +132,32 @@ public class App extends Application {
                     problemAction.updateAndRedrawScratchpad(TEXT_AREA_TITLES[idx], newVal);
                 });
             }
+
+            // Add abbreviation expansion handler
+            ta.addEventHandler(KeyEvent.KEY_PRESSED, event -> {
+                if (event.getCode() == KeyCode.SPACE) {
+                    int caret = ta.getCaretPosition();
+                    String text = ta.getText(0, caret);
+                    int lastSpace = text.lastIndexOf(' ');
+                    int lastNewline = text.lastIndexOf('\n');
+                    int start = Math.max(lastSpace, lastNewline) + 1;
+                    String word = text.substring(start);
+                    if (word.startsWith(":")) {
+                        String key = word.substring(1);
+                        String replacement = null;
+                        if (key.equals("cd")) {
+                            replacement = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+                        } else {
+                            replacement = abbrevMap.get(key);
+                        }
+                        if (replacement != null) {
+                            ta.deleteText(start, caret);
+                            ta.insertText(start, replacement + " ");
+                            event.consume();
+                        }
+                    }
+                }
+            });
 
             // Optional: restrict control chars except tab/newline
             ta.setTextFormatter(new TextFormatter<>(filterControlChars()));

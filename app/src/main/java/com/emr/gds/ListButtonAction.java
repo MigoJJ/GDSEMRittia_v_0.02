@@ -13,9 +13,9 @@ import java.time.format.DateTimeFormatter;
 
 public class ListButtonAction {
 
-    private final App app;
+    private final IttiaApp app;
 
-    public ListButtonAction(App app) {
+    public ListButtonAction(IttiaApp app) {
         this.app = app;
     }
 

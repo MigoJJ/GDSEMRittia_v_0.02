@@ -14,7 +14,7 @@ import java.util.*;
 
 public class ListProblemAction {
 
-    private final App app;
+    private final IttiaApp app;
 
     // Problem list (left)
     private final ObservableList<String> problems = FXCollections.observableArrayList(
@@ -28,7 +28,7 @@ public class ListProblemAction {
     private TextArea scratchpadArea; // Promoted to a field
     private final LinkedHashMap<String, String> scratchpadEntries = new LinkedHashMap<>();
 
-    public ListProblemAction(App app) {
+    public ListProblemAction(IttiaApp app) {
         this.app = app;
     }
 
@@ -46,7 +46,7 @@ public class ListProblemAction {
         TextField input = new TextField();
         input.setPromptText("Add problem and press Enter");
         input.setOnAction(e -> {
-            String text = App.normalizeLine(input.getText());
+            String text = IttiaApp.normalizeLine(input.getText());
             if (!text.isBlank()) {
                 problems.add(text);
                 input.clear();
@@ -104,7 +104,7 @@ public class ListProblemAction {
     public void redrawScratchpad() {
         if (scratchpadArea == null) return; // Guard against early calls before UI is built
 
-        List<String> orderedTitles = Arrays.asList(App.TEXT_AREA_TITLES);
+        List<String> orderedTitles = Arrays.asList(IttiaApp.TEXT_AREA_TITLES);
         StringJoiner sj = new StringJoiner("\n");
         for (String title : orderedTitles) {
             String value = scratchpadEntries.get(title);
