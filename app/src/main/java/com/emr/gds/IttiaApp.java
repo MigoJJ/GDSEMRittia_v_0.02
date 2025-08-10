@@ -3,19 +3,21 @@ package com.emr.gds;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextFormatter;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
@@ -26,11 +28,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.function.UnaryOperator;
 
 public class IttiaApp extends Application {
@@ -43,14 +41,15 @@ public class IttiaApp extends Application {
             "O>", "Physical Exam>", "A>", "P>", "Comment>"
     };
 
-    // Fonts
-    private static final String BODY_FONT_FALLBACK = "Consolas, 'Nanum Gothic Coding', 'D2Coding', 'Noto Sans Mono', monospace";
+    // Fonts (not strictly used here, but kept for future style work)
+    private static final String BODY_FONT_FALLBACK =
+            "Consolas, 'Nanum Gothic Coding', 'D2Coding', 'Noto Sans Mono', monospace";
 
     private ListProblemAction problemAction;
     private ListButtonAction buttonAction;
 
     private Connection dbConn;
-    private Map<String, String> abbrevMap = new HashMap<>();
+    private final Map<String, String> abbrevMap = new HashMap<>();
 
     @Override
     public void start(Stage stage) {
@@ -104,9 +103,11 @@ public class IttiaApp extends Application {
             while (rs.next()) {
                 abbrevMap.put(rs.getString("short"), rs.getString("full"));
             }
+            rs.close();
+            stmt.close();
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
-            // Handle error, perhaps show alert
+            // You may want to show a user-facing alert here
         }
     }
 
@@ -120,20 +121,22 @@ public class IttiaApp extends Application {
             TextArea ta = new TextArea();
             ta.setWrapText(true);
             ta.setFont(Font.font("Monospaced", 13));
+            ta.setPrefRowCount(8);
+            ta.setPrefColumnCount(40);
 
             // Set prompt text from our titles array
             String title = (i < TEXT_AREA_TITLES.length) ? TEXT_AREA_TITLES[i] : "Area " + (i + 1);
             ta.setPromptText(title);
 
-            // Add listener to update the scratchpad
+            // Update scratchpad on change
             final int idx = i;
             if (idx < TEXT_AREA_TITLES.length) {
-                ta.textProperty().addListener((obs, oldVal, newVal) -> {
-                    problemAction.updateAndRedrawScratchpad(TEXT_AREA_TITLES[idx], newVal);
-                });
+                ta.textProperty().addListener((obs, oldVal, newVal) ->
+                        problemAction.updateAndRedrawScratchpad(TEXT_AREA_TITLES[idx], newVal));
             }
 
-            // Add abbreviation expansion handler
+            // Abbreviation expansion:
+            // Do NOT consume the SPACE event unless an actual replacement occurs.
             ta.addEventHandler(KeyEvent.KEY_PRESSED, event -> {
                 if (event.getCode() == KeyCode.SPACE) {
                     int caret = ta.getCaretPosition();
@@ -144,32 +147,25 @@ public class IttiaApp extends Application {
                     String word = text.substring(start);
                     if (word.startsWith(":")) {
                         String key = word.substring(1);
-                        String replacement = null;
-                        if (key.equals("cd")) {
-                            replacement = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
-                        } else {
-                            replacement = abbrevMap.get(key);
-                        }
+                        String replacement = key.equals("cd")
+                                ? LocalDate.now().format(DateTimeFormatter.ISO_DATE)
+                                : abbrevMap.get(key);
                         if (replacement != null) {
                             ta.deleteText(start, caret);
                             ta.insertText(start, replacement + " ");
-                            event.consume();
+                            event.consume(); // consume ONLY when replacing
                         }
                     }
                 }
             });
 
-            // Optional: restrict control chars except tab/newline
+            // Filter weird control chars but allow tab/newline
             ta.setTextFormatter(new TextFormatter<>(filterControlChars()));
-
-            ScrollPane sp = new ScrollPane(ta);
-            sp.setFitToWidth(true);
-            sp.setFitToHeight(true);
-            sp.setPrefViewportHeight(150);
 
             int r = i / cols;
             int c = i % cols;
-            grid.add(sp, c, r);
+            // IMPORTANT: add TextArea directly; TextArea scrolls itself.
+            grid.add(ta, c, r);
             areas.add(ta);
         }
         return grid;
@@ -198,7 +194,7 @@ public class IttiaApp extends Application {
 
     private void insertBlock(TextArea ta, String block) {
         int caret = ta.getCaretPosition();
-        ta.insertText(caret, block); // Using insertText is cleaner and fires listeners correctly
+        ta.insertText(caret, block); // cleaner and fires listeners correctly
     }
 
     public void formatCurrentArea() {
@@ -228,12 +224,9 @@ public class IttiaApp extends Application {
                 String title;
                 if (i < TEXT_AREA_TITLES.length) {
                     title = TEXT_AREA_TITLES[i];
-                    // Clean up title for final output (e.g., "CC>" becomes "CC")
-                    if (title.endsWith(">")) {
-                        title = title.substring(0, title.length() - 1);
-                    }
+                    if (title.endsWith(">")) title = title.substring(0, title.length() - 1);
                 } else {
-                    title = "Area " + (i + 1); // Fallback
+                    title = "Area " + (i + 1);
                 }
                 sj.add("# " + title + "\n" + txt);
             }
@@ -252,31 +245,40 @@ public class IttiaApp extends Application {
         for (TextArea ta : areas) {
             if (ta.isFocused()) return ta;
         }
-        // If none focused, pick Area 1
         return areas.isEmpty() ? null : areas.get(0);
     }
 
     private void installGlobalShortcuts(Scene scene) {
         // Insert default template
-        scene.getAccelerators().put(new KeyCodeCombination(KeyCode.I, KeyCombination.CONTROL_DOWN),
-                () -> insertTemplateIntoFocusedArea(ListButtonAction.TemplateLibrary.HPI));
+        scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.I, KeyCombination.CONTROL_DOWN),
+                () -> insertTemplateIntoFocusedArea(ListButtonAction.TemplateLibrary.HPI)
+        );
 
         // Auto format current area
-        scene.getAccelerators().put(new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN),
-                this::formatCurrentArea);
+        scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN),
+                this::formatCurrentArea
+        );
 
         // Copy all
-        scene.getAccelerators().put(new KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN),
-                this::copyAllToClipboard);
+        scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN),
+                this::copyAllToClipboard
+        );
 
         // Focus area 1..9 (Ctrl+1..9) and 10 (Ctrl+0)
         for (int i = 1; i <= 9; i++) {
             final int idx = i - 1;
-            scene.getAccelerators().put(new KeyCodeCombination(KeyCode.getKeyCode(String.valueOf(i)), KeyCombination.CONTROL_DOWN),
-                    () -> focusArea(idx));
+            scene.getAccelerators().put(
+                    new KeyCodeCombination(KeyCode.getKeyCode(String.valueOf(i)), KeyCombination.CONTROL_DOWN),
+                    () -> focusArea(idx)
+            );
         }
-        scene.getAccelerators().put(new KeyCodeCombination(KeyCode.DIGIT0, KeyCombination.CONTROL_DOWN),
-                () -> focusArea(9));
+        scene.getAccelerators().put(
+                new KeyCodeCombination(KeyCode.DIGIT0, KeyCombination.CONTROL_DOWN),
+                () -> focusArea(9)
+        );
     }
 
     private void focusArea(int idx) {
@@ -286,7 +288,7 @@ public class IttiaApp extends Application {
     }
 
     private void showToast(String message) {
-        // Lightweight toast using Alert (simple & blocking). Replace with non-blocking snackbar as needed.
+        // Simple modal alert; replace with non-blocking snackbar if preferred
         Alert a = new Alert(Alert.AlertType.INFORMATION, message, ButtonType.OK);
         a.setHeaderText(null);
         a.setTitle("Info");
@@ -295,17 +297,22 @@ public class IttiaApp extends Application {
 
     // ===== Helpers =====
 
-    private static UnaryOperator<TextFormatter.Change> filterControlChars() {
+    private static java.util.function.UnaryOperator<TextFormatter.Change> filterControlChars() {
         return change -> {
             String text = change.getText();
-            if (text == null) return change;
-            // allow normal text; block weird control chars except tab/newline
-            String filtered = text.replaceAll("[-\u0008\u000B\u000C\u000E-\u001F]", "");
+            if (text == null || text.isEmpty()) return change;
+            // Block ASCII control chars except TAB (U+0009) and LF (U+000A).
+            // JavaFX uses '\n' (LF) for newlines.
+            String filtered = text.replaceAll("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]", "");
             change.setText(filtered);
             return change;
         };
     }
 
+
+
+    
+    
     public static String normalizeLine(String s) {
         return s == null ? "" : s.trim().replaceAll("\\s+", " ");
     }
@@ -325,7 +332,7 @@ public class IttiaApp extends Application {
                 // Normalize bullets to "- "
                 t = t.replaceAll("^[•·→▶▷‣⦿∘*]+\\s*", "- ");
                 t = t.replaceAll("^[-]{1,2}\\s*", "- ");
-                // collapse internal spaces
+                // trim trailing spaces
                 t = t.replaceAll("\\s+$", "");
 
                 if (t.isEmpty()) {
@@ -348,9 +355,9 @@ public class IttiaApp extends Application {
         static String finalizeForEMR(String raw) {
             String s = autoFormat(raw);
             // Ensure markdown-like headers start with '# '
-            s = s.replaceAll("^(#+)([^#\n])", "$1 $2");
+            s = s.replaceAll("^(#+)([^#\\n])", "$1 $2");
             // Guarantee single blank line between sections
-            s = s.replaceAll("\n{3,}", "\n\n");
+            s = s.replaceAll("\\n{3,}", "\n\n");
             return s.trim();
         }
     }
