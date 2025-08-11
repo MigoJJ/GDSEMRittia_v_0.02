@@ -7,17 +7,26 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.stage.Stage;
 
+import java.sql.Connection;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 public class ListButtonAction {
 
-    private final IttiaApp app;
+	    private final IttiaApp app;
+	    private final Connection dbConn;
+	    private final Map<String, String> abbrevMap;
 
-    public ListButtonAction(IttiaApp app) {
-        this.app = app;
-    }
+	    // Modify the constructor
+	    public ListButtonAction(IttiaApp app, Connection dbConn, Map<String, String> abbrevMap) {
+	        this.app = app;
+	        this.dbConn = dbConn;
+	        this.abbrevMap = abbrevMap;
+	    }
+
 
     public ToolBar buildTopBar() {
         Button btnInsertTemplate = new Button("Insert Template (Ctrl+I)");
@@ -29,6 +38,15 @@ public class ListButtonAction {
         Button btnCopyAll = new Button("Copy All (Ctrl+Shift+C)");
         btnCopyAll.setOnAction(e -> app.copyAllToClipboard());
 
+     // START: ADD THIS CODE
+        Button btnManageDb = new Button("Manage Abbrs...");
+        btnManageDb.setOnAction(e -> {
+            // Get the main window to act as the owner for the modal dialog
+            Stage ownerStage = (Stage) btnManageDb.getScene().getWindow();
+            dbControl controller = new dbControl(dbConn, abbrevMap, ownerStage, app);
+            controller.showDbManagerDialog();
+        });
+        
         // Templates menu
         MenuButton templatesMenu = new MenuButton("Templates");
         for (TemplateLibrary t : TemplateLibrary.values()) {
@@ -48,6 +66,7 @@ public class ListButtonAction {
                 new Separator(),
                 btnFormat,
                 btnCopyAll,
+                btnManageDb, // Add the new button here
                 spacer,
                 hint
         );

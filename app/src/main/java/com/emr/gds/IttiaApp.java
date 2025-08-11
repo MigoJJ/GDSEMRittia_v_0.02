@@ -59,8 +59,14 @@ public class IttiaApp extends Application {
         initAbbrevDatabase();
 
         problemAction = new ListProblemAction(this);
-        buttonAction = new ListButtonAction(this);
+     // Inside the start() method
 
+     // ...
+     initAbbrevDatabase();
+
+     // Modify this line
+     buttonAction = new ListButtonAction(this, dbConn, abbrevMap);
+     // ...
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(10));
 
