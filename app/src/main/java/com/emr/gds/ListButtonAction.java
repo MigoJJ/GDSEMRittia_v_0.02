@@ -1,4 +1,3 @@
-// ListButtonAction.java
 package com.emr.gds;
 
 import javafx.geometry.Insets;
@@ -29,6 +28,10 @@ public class ListButtonAction {
         Button btnCopyAll = new Button("Copy All (Ctrl+Shift+C)");
         btnCopyAll.setOnAction(e -> app.copyAllToClipboard());
 
+        // Add the new DB Manager button to the top bar
+        Button btnDbManager = new Button("DB Manager");
+        btnDbManager.setOnAction(e -> app.showDbManager());
+
         // Templates menu
         MenuButton templatesMenu = new MenuButton("Templates");
         for (TemplateLibrary t : TemplateLibrary.values()) {
@@ -48,6 +51,8 @@ public class ListButtonAction {
                 new Separator(),
                 btnFormat,
                 btnCopyAll,
+                new Separator(), // Add a separator for better visual grouping
+                btnDbManager,
                 spacer,
                 hint
         );
