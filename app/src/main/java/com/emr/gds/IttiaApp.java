@@ -93,29 +93,45 @@ public class IttiaApp extends Application {
         installGlobalShortcuts(scene);
     }
 
+    /**
+     * Initializes the SQLite database and loads abbreviations into the in-memory map.
+     * The database file is located in the project's resources directory.
+     */
     private void initAbbrevDatabase() {
         try {
+            // Load the SQLite JDBC driver
             Class.forName("org.sqlite.JDBC");
-            dbConn = DriverManager.getConnection("jdbc:sqlite:abbreviations.db");
+
+            // Connect to the database using a path constructed with the system's user.dir property
+            // This ensures the path is robust regardless of where the application is run from.
+            String dbPath = System.getProperty("user.dir") + "/src/main/resources/database/abbreviations.db";
+            dbConn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+
+            // Create the abbreviations table if it does not exist
             Statement stmt = dbConn.createStatement();
             stmt.execute("CREATE TABLE IF NOT EXISTS abbreviations (short TEXT PRIMARY KEY, full TEXT)");
 
-            // Insert examples if not exist
+            // Insert example abbreviations if they don't already exist
             stmt.execute("INSERT OR IGNORE INTO abbreviations (short, full) VALUES ('c', 'hypercholesterolemia')");
             stmt.execute("INSERT OR IGNORE INTO abbreviations (short, full) VALUES ('to', 'hypothyroidism')");
 
-            // Load into map
+            // Load all abbreviations from the database into the in-memory map
+            abbrevMap.clear(); // Clear existing map to prevent duplicates on re-initialization
             ResultSet rs = stmt.executeQuery("SELECT * FROM abbreviations");
             while (rs.next()) {
                 abbrevMap.put(rs.getString("short"), rs.getString("full"));
             }
+
             rs.close();
             stmt.close();
+
         } catch (ClassNotFoundException | SQLException e) {
+            // Print the stack trace for debugging and notify the user
             e.printStackTrace();
-            // You may want to show a user-facing alert here
+            System.err.println("Failed to initialize database: " + e.getMessage());
         }
     }
+
 
     private GridPane buildCenterAreas() {
         GridPane grid = new GridPane();
